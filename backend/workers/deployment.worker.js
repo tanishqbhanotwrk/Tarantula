@@ -1,13 +1,21 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
 import { Worker } from "bullmq";
 import { redis } from "../connections/redis.connection.js"
+import { connectDB } from "../connections/mongoose.connection.js";
 import Deployment from "../models/deployment.model.js"
+
+await connectDB();
 
 const getDeploymentById = async (id) => {
     try {
-        const deployment = Deployment.findById(id);
+        const deployment = await Deployment.findById(id);
         if(!deployment){
-            console.log("No such deployment exists.");
-            return;
+            throw new Error("Deployment not found");
         }
         return deployment;
     } catch (error) {
@@ -22,15 +30,24 @@ const checkDeploymentStatus = (deployment, status) => {
         }
         return false
     } catch (error) {
-        conosle.log(error.message);
+        console.log("Status does not match");
     }
 };
 
-const buildHandler = (deployment) => {
+const buildHandler = async (deployment) => {
     try {
-        
+        deployment.status = "building";
+        await deployment.save();
+        console.log("Job building in progress: "+deployment._id);
+
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        deployment.status = "running";
+        await deployment.save();
+        console.log("Job successfully running: "+deployment._id);
     } catch (error) {
-        
+        deployment.status = "failed";
+        await deployment.save();
+        console.log(error.message);
     }
 };
 
@@ -39,9 +56,13 @@ const deploymentWorker = new Worker("deployment-queue", async (job) => {
     console.log("Job recieved: "+id);
 
     try {
-        
+        const deployment = await getDeploymentById(id);
+        if(!deployment || !checkDeploymentStatus(deployment, "queued")){
+            return;
+        }
+        await buildHandler(deployment);
     } catch (error) {
-        
+        console.log(error.message);
     }
 }, {
     connection: redis,

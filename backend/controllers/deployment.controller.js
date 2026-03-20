@@ -36,6 +36,7 @@ export const createDeployment = async (req, res) => {
         });
         await deployment.save();
         console.log("Deployment created.");
+        await new Promise((resolve) => setTimeout(resolve, 5000));
         await addDeploymentToQueue(deployment);
         return res.status(200).json({success: true, message: "Job added: "+deployment._id})
     } catch (error) {
