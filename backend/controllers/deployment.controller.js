@@ -28,6 +28,11 @@ const addDeploymentToQueue = async (deployment) => {
     }
 }
 
+const addLog = async (deployment, message) => {
+    deployment.logs.push({message, timestamp: new Date()});
+    await deployment.save();
+}
+
 export const createDeployment = async (req, res) => {
     try {
         const deployment = new Deployment({

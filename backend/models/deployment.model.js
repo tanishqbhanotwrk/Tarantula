@@ -15,7 +15,14 @@ const deploymentSchema = new mongoose.Schema({
         type: String,
         enum: ["initialised", "queued", "building", "running", "failed"],
         default: "initialised"
-    }
+    },
+
+    logs: [
+        {
+            message: String,
+            timestamp: Date
+        }
+    ]
 }, {timestamps: true});
 
 export default mongoose.model("Deployment", deploymentSchema);
