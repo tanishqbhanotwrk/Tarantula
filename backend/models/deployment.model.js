@@ -14,8 +14,8 @@ const deploymentSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ["initialised", "queued", "building", "running", "failed"],
-        default: "intialised"
+        default: "initialised"
     }
-});
+}, {timestamps: true});
 
 export default mongoose.model("Deployment", deploymentSchema);
