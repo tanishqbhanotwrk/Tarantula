@@ -17,6 +17,10 @@ const deploymentSchema = new mongoose.Schema({
         default: "initialised"
     },
 
+    projectPath: {
+        type: String,
+    },
+
     logs: [
         {
             message: String,
