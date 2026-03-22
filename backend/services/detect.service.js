@@ -1,0 +1,64 @@
+import fs from "fs";
+import path from "path";
+
+const dockerfileExists = (projectPath) => {
+    return fs.existsSync(path.join(projectPath, "Dockerfile"));
+};
+
+const hasPackageJson = (projectPath) => {
+    return fs.existsSync(path.join(projectPath, "package.json"));
+};
+
+const hasRequirements = (projectPath) => {
+    return fs.existsSync(path.join(projectPath, "requirements.txt"));
+};
+
+const hasPyProject = (projectPath) => {
+    return fs.existsSync(path.join(projectPath, "pyproject.toml"))
+};
+
+const detectProject = (projectPath) => {
+    if(dockerfileExists(projectPath)) return "dockerfile";
+
+    else if(hasPackageJson(projectPath)) return "node";
+
+    else if(hasRequirements(projectPath)) return "python";
+
+    else if(hasPyProject(projectPath)) return "python";
+
+    else return "unknown";
+};
+
+export const detectApps = (projectPath) => {
+    const apps = [];
+    console.log("projectPath:", projectPath);
+    console.log("files:", fs.readdirSync(projectPath));
+
+    // 1. Check root
+    const rootType = detectProject(projectPath);
+    if (rootType !== "unknown") {
+        apps.push({ path: ".", type: rootType });
+    }
+
+    // 2. Check first-level folders
+    const files = fs.readdirSync(projectPath);
+
+    for (const file of files) {
+        if (file === "node_modules" || file === ".git") continue;
+
+        const fullPath = path.join(projectPath, file);
+
+        if (fs.statSync(fullPath).isDirectory()) {
+            const type = detectProject(fullPath);
+
+            if (type !== "unknown") {
+                apps.push({
+                    path: file,
+                    type
+                });
+            }
+        }
+    }
+
+    return apps;
+};

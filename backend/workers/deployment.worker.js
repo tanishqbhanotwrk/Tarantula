@@ -4,14 +4,17 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-import {exec} from "child_process";
-import fs from "fs";
-import crypto from "crypto";
-
 import { Worker } from "bullmq";
 import { redis } from "../connections/redis.connection.js";
 import { connectDB } from "../connections/mongoose.connection.js";
 import Deployment from "../models/deployment.model.js";
+
+import { cloneRepo } from "../services/clone.service.js";
+import { buildImage } from "../services/build.service.js";
+import { detectApps } from "../services/detect.service.js";
+import { generateDockerFile } from "../services/generateDockerFile.service.js";
+import { extractMetaData } from "../services/metadata.service.js";
+import { runContainer } from "../services/run.service.js";
 
 await connectDB();
 
@@ -40,7 +43,7 @@ const checkDeploymentStatus = (deployment, status) => {
 
 const buildHandler = async (deployment) => {
     try {
-        await cloneRepo(deployment);
+        deployment.projectPath = await cloneRepo(deployment._id, deployment.repoUrl);
         deployment.status = "building";
         await deployment.save();
         console.log("Job building in progress: "+deployment._id);
@@ -49,43 +52,12 @@ const buildHandler = async (deployment) => {
         deployment.status = "running";
         await deployment.save();
         console.log("Job successfully running: "+deployment._id);
+        console.log(deployment.projectPath);
+        const apps = detectApps(deployment.projectPath);
+        console.log(apps);
     } catch (error) {
         deployment.status = "failed";
         await deployment.save();
-        console.log(error.message);
-    }
-};
-
-const runCommand = (cmd, cwd) => {
-    new Promise((resolve, reject) => {
-        exec(cmd, {cwd}, (err, stdout, stderr) => {
-            if(err) {
-                reject(stderr);
-            } else {
-                resolve(stdout);
-            }
-        })
-    })
-};
-
-const cloneRepo = async (deployment) => {
-    const baseDir = process.env.DEPLOYMENTS_DIR;
-    console.log("repoUrl:", deployment.repoUrl);
-    if(!fs.existsSync(baseDir)){
-        fs.mkdirSync(baseDir, {recursive: true});
-    }
-
-    try {
-        const id = crypto.randomBytes(3).toString("hex");
-        const repoName = deployment.repoUrl.split("/").pop().replace(".git", "");
-        const folderName = `${repoName}-${id.slice(-6)}`;
-        const projectPath = path.join(baseDir, folderName);
-        await runCommand(`git clone ${deployment.repoUrl} ${projectPath}`);
-        console.log("Repository cloned successfully.");
-        deployment.projectPath = projectPath;
-        await deployment.save();
-        return projectPath;
-    } catch (error) {
         console.log(error.message);
     }
 };

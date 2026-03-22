@@ -13,7 +13,7 @@ const deploymentSchema = new mongoose.Schema({
      
     status: {
         type: String,
-        enum: ["initialised", "queued", "building", "running", "failed"],
+        enum: ["initialised", "queued", "cloning", "cloned", "building", "built", "running", "paused", "failed"],
         default: "initialised"
     },
 
