@@ -9,7 +9,7 @@ const hasPackageJson = (projectPath) => {
     return fs.existsSync(path.join(projectPath, "package.json"));
 };
 
-const hasRequirements = (projectPath) => {
+const hasRequirementsTxt = (projectPath) => {
     return fs.existsSync(path.join(projectPath, "requirements.txt"));
 };
 
@@ -22,25 +22,34 @@ const detectProject = (projectPath) => {
 
     else if(hasPackageJson(projectPath)) return "node";
 
-    else if(hasRequirements(projectPath)) return "python";
+    else if(hasRequirementsTxt(projectPath)) return "python";
 
     else if(hasPyProject(projectPath)) return "python";
 
     else return "unknown";
 };
 
-export const detectApps = (projectPath) => {
+const waitForRepo = async (projectPath, maxRetries = 3) => {  //eventual consistency handling
+    let retries = maxRetries;
+    while(retries--){
+        const files = fs.readdirSync(projectPath).filter(f => f !== ".git");
+        if(files.length > 0) return;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    throw new Error("Repository not populated after clone.");
+}
+
+export const detectApps = async (projectPath) => {
     const apps = [];
+    await waitForRepo(projectPath);
     console.log("projectPath:", projectPath);
     console.log("files:", fs.readdirSync(projectPath));
 
-    // 1. Check root
     const rootType = detectProject(projectPath);
     if (rootType !== "unknown") {
         apps.push({ path: ".", type: rootType });
     }
 
-    // 2. Check first-level folders
     const files = fs.readdirSync(projectPath);
 
     for (const file of files) {

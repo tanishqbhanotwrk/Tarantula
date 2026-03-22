@@ -53,7 +53,7 @@ const buildHandler = async (deployment) => {
         await deployment.save();
         console.log("Job successfully running: "+deployment._id);
         console.log(deployment.projectPath);
-        const apps = detectApps(deployment.projectPath);
+        const apps = await detectApps(deployment.projectPath);
         console.log(apps);
     } catch (error) {
         deployment.status = "failed";
