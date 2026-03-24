@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 
+import { extractMetaData } from "./metadata.service.js";
+
 const dockerfileExists = (projectPath) => {
     return fs.existsSync(path.join(projectPath, "Dockerfile"));
 };
@@ -107,7 +109,9 @@ export const detectApps = async (projectPath, deploymentId, repoName) => {
             }
         }
     }
-
+    apps.forEach(a => {
+        extractMetaData(projectPath, a.path, a.framework);
+    })
     console.log(apps);
     return apps;
 };
