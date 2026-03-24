@@ -7,17 +7,16 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const runCommand = (cmd, cwd) =>
-    new Promise((resolve, reject) => {
-        exec(cmd, { cwd }, (err, stdout, stderr) => {
-            console.log("CMD:", cmd);
-            console.log("STDOUT:", stdout);
-            console.log("STDERR:", stderr);
+const runCommand = (cmd, cwd) => new Promise((resolve, reject) => {
+    exec(cmd, { cwd }, (err, stdout, stderr) => {
+        console.log("CMD:", cmd);
+        console.log("STDOUT:", stdout);
+        console.log("STDERR:", stderr);
 
-            if (err) reject(err);
-            else resolve(stdout);
-        });
+        if (err) reject(err);
+        else resolve(stdout);
     });
+});
 
 export const cloneRepo = async (deploymentId, repoUrl) => {
     const baseDir = process.env.DEPLOYMENTS_DIR;

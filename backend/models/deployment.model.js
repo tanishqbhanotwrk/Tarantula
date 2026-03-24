@@ -21,6 +21,13 @@ const deploymentSchema = new mongoose.Schema({
         type: String,
     },
 
+    apps: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "App"
+        }
+    ],
+
     logs: [
         {
             message: String,

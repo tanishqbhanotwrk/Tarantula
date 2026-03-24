@@ -8,12 +8,12 @@ import { Worker } from "bullmq";
 import { redis } from "../connections/redis.connection.js";
 import { connectDB } from "../connections/mongoose.connection.js";
 import Deployment from "../models/deployment.model.js";
+import App from "../models/app.model.js";
 
 import { cloneRepo } from "../services/clone.service.js";
 import { buildImage } from "../services/build.service.js";
 import { detectApps } from "../services/detect.service.js";
 import { generateDockerFile } from "../services/generateDockerFile.service.js";
-import { extractMetaData } from "../services/metadata.service.js";
 import { runContainer } from "../services/run.service.js";
 
 await connectDB();
@@ -41,20 +41,41 @@ const checkDeploymentStatus = (deployment, status) => {
     }
 };
 
+const addApp = async (deployment, scannedApps) => {
+    try {
+        const appsData = scannedApps.map(app => ({
+            appOf: deployment._id,
+            name: app.name,
+            path: app.path,
+            startScript: app.startScript,
+            buildScript: app.buildScript,
+            framework: app.framework
+        }));
+        const createdApps = await App.insertMany(appsData);
+        await Deployment.findByIdAndUpdate(deployment._id, {
+            $push: { apps: { $each: createdApps.map(a => a._id) } }
+        });
+        return createdApps;
+    } catch (error) {
+        throw error;
+    }
+};
+
 const buildHandler = async (deployment) => {
     try {
         deployment.projectPath = await cloneRepo(deployment._id, deployment.repoUrl);
         deployment.status = "building";
         await deployment.save();
         console.log("Job building in progress: "+deployment._id);
-
         await new Promise((resolve) => setTimeout(resolve, 50));
         deployment.status = "running";
         await deployment.save();
         console.log("Job successfully running: "+deployment._id);
         console.log(deployment.projectPath);
-        const apps = await detectApps(deployment.projectPath);
+        const apps = await detectApps(deployment.projectPath, deployment._id, deployment.repoName);
         console.log(apps);
+        // await addApp(deployment, apps);
+        console.log("Apps sucessfully created");
     } catch (error) {
         deployment.status = "failed";
         await deployment.save();
@@ -65,7 +86,6 @@ const buildHandler = async (deployment) => {
 const deploymentWorker = new Worker("deployment-queue", async (job) => {
     const {id} = job.data;
     console.log("Job recieved: "+id);
-
     try {
         const deployment = await getDeploymentById(id);
         if(!deployment || !checkDeploymentStatus(deployment, "queued")){
