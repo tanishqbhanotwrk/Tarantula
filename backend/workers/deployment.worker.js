@@ -47,9 +47,10 @@ const addApp = async (deployment, scannedApps) => {
             appOf: deployment._id,
             name: app.name,
             path: app.path,
-            startScript: app.startScript,
-            buildScript: app.buildScript,
-            framework: app.framework
+            runtime: app.runtime,
+            slug: app.slug,
+            hash: app.hash,
+            config: app.config
         }));
         const createdApps = await App.insertMany(appsData);
         await Deployment.findByIdAndUpdate(deployment._id, {
@@ -74,7 +75,7 @@ const buildHandler = async (deployment) => {
         console.log(deployment.projectPath);
         const apps = await detectApps(deployment.projectPath, deployment._id, deployment.repoName);
         console.log(apps);
-        // await addApp(deployment, apps);
+        await addApp(deployment, apps);
         console.log("Apps sucessfully created");
     } catch (error) {
         deployment.status = "failed";

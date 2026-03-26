@@ -4,8 +4,30 @@ import crypto from "crypto";
 
 import { extractMetaData } from "./metadata.service.js";
 
+const IGNORE = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "out"
+]);
+
 const dockerfileExists = (projectPath) => {
     return fs.existsSync(path.join(projectPath, "Dockerfile"));
+};
+
+const dockerComposeExists = (projectPath) => {
+    const possibleFiles = [
+        "docker-compose.yaml",
+        "docker-compose.yml",
+        "compose.yaml",
+        "compose.yml"
+    ];
+
+    return possibleFiles.some(file =>
+        fs.existsSync(path.join(projectPath, file))
+    );
 };
 
 const hasPackageJson = (projectPath) => {
@@ -20,33 +42,32 @@ const hasPyProject = (projectPath) => {
     return fs.existsSync(path.join(projectPath, "pyproject.toml"));
 };
 
-const hasYarn = (projectPath) => {
-    return fs.existsSync(path.join(projectPath, "yarn.lock"));
-};
-
-const hasPnpm = (projectPath) => {
-    return fs.existsSync(path.join(projectPath, "pnpm-lock.yaml"));
-};
-
 const detectProject = (projectPath) => {
-    if(dockerfileExists(projectPath)) return "dockerfile";
-    else if(hasPackageJson(projectPath)) return "node";
-    else if(hasRequirementsTxt(projectPath)) return "python";
-    else if(hasPyProject(projectPath)) return "python";
-    else if(hasYarn(projectPath)) return "yarn";
-    else if(hasPnpm(projectPath)) return "pnpm";
-    else return "unknown";
+    if (dockerComposeExists(projectPath)) return "compose";
+    if (dockerfileExists(projectPath)) return "docker";
+    if (hasPackageJson(projectPath)) return "node";
+    if (hasRequirementsTxt(projectPath) || hasPyProject(projectPath)) return "python";
+
+    return "unknown";
 };
 
-const waitForRepo = async (projectPath, maxRetries = 3) => {  //eventual consistency handling
+const waitForRepo = async (projectPath, maxRetries = 3) => {
     let retries = maxRetries;
-    while(retries--){
+
+    while (retries--) {
+        if (!fs.existsSync(projectPath)) {
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+        }
+
         const files = fs.readdirSync(projectPath).filter(f => f !== ".git");
-        if(files.length > 0) return;
-        await new Promise(r => setTimeout(r, 1000));
+        if (files.length > 0) return;
+
+        await new Promise(r => setTimeout(r, 1000)); //eventuality
     }
+
     throw new Error("Repository not populated after clone.");
-}
+};
 
 const base62 = (buffer) => {
     const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -61,57 +82,90 @@ const base62 = (buffer) => {
     return result || "0";
 };
 
-const appNameGenerator = (path, deploymentId, repoName) => {
-    const baseName = path === "." ? `${repoName}-app` : `${repoName}-${path.split(/[\\/]/).pop()}`;
-    const slugBase = baseName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "app";
-    const normalisedPath = path.toLowerCase().replace(/\/+$/, "");
-    const input = `${deploymentId}-${normalisedPath}`;
+const appNameGenerator = (appPath, deploymentId, repoName) => {
+    const baseName =
+        appPath === "."
+            ? `${repoName}-app`
+            : `${repoName}-${appPath.split(/[\\/]/).pop()}`;
+
+    const slugBase =
+        baseName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "") || "app";
+
+    const normalisedPath = appPath.toLowerCase().replace(/\/+$/, "");
+    const input = `${deploymentId}:${normalisedPath}`;
+
     const hashBuffer = crypto.createHash("sha256").update(input).digest();
     const shortHash = base62(hashBuffer).slice(0, 8);
+
     const slug = `${slugBase}-${shortHash}`;
+
     return {
         name: baseName,
         slug,
         hash: shortHash
-    }
-}
+    };
+};
 
 export const detectApps = async (projectPath, deploymentId, repoName) => {
     const apps = [];
+
     await waitForRepo(projectPath);
-    console.log("projectPath:", projectPath);
-    console.log("files:", fs.readdirSync(projectPath));
 
     const rootType = detectProject(projectPath);
+
     if (rootType !== "unknown") {
-        const {name, slug, hash} = appNameGenerator(".", deploymentId, repoName)
-        apps.push({ path: ".", framework: rootType, name: name, slug: slug, hash: hash });
+        const { name, slug, hash } = appNameGenerator(".", deploymentId, repoName);
+
+        apps.push({
+            path: ".",
+            runtime: rootType,
+            name,
+            slug,
+            hash
+        });
     }
 
     const files = fs.readdirSync(projectPath);
 
     for (const file of files) {
-        if (file === "node_modules" || file === ".git") continue;
+        if (IGNORE.has(file)) continue;
 
         const fullPath = path.join(projectPath, file);
 
         if (fs.statSync(fullPath).isDirectory()) {
-            const framework = detectProject(fullPath);
-            const {name, slug, hash} = appNameGenerator(fullPath, deploymentId, repoName)
-            if (framework !== "unknown") {
+            const runtime = detectProject(fullPath);
+
+            if (runtime !== "unknown") {
+                const { name, slug, hash } = appNameGenerator(file, deploymentId, repoName);
+
                 apps.push({
                     path: file,
-                    framework,
-                    name: name, 
-                    slug: slug, 
-                    hash: hash
+                    runtime,
+                    name,
+                    slug,
+                    hash
                 });
             }
         }
     }
-    apps.forEach(a => {
-        extractMetaData(projectPath, a.path, a.framework);
-    })
+
     console.log(apps);
+
+    for (const app of apps) {
+        const meta = await extractMetaData(projectPath, app.path, app.runtime);
+
+        if (meta) {
+            app.runtime = meta.runtime;
+
+            app.config = {
+                ...(app.config || {}),
+                ...(meta.config || {})
+            };
+        }
+    }
+
     return apps;
 };

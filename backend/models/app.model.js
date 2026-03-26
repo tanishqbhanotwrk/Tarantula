@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const appSchema = new mongoose.Schema({
+    //Identification
     appOf: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Deployment",
@@ -27,16 +28,47 @@ const appSchema = new mongoose.Schema({
         required: true
     },
 
-    startScript: {
-        type: String
-    },
-
-    buildScript: {
-        type: String
-    },
-
-    framework: {
+    //Runtime
+    runtime:{
         type: String,
+        enum: ["node", "python", "docker", "compose"],
+        required: true
+    },
+
+    config: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
+    },
+
+    //Execution instance states
+    hostPort: {
+        type: Number
+    },
+
+    containerId: {
+        type: String
+    },
+
+    env: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
+    },
+
+    version: {
+        type: Number,
+        default: 1
+    },
+    
+    status: {
+        type: String,
+        enum: ["idle", "queued", "building", "deploying", "running", "failed", "stopped"],
+        default: "idle"
+    },
+
+    //miscellaneous
+    logCount: {
+        type: Number,
+        default: 0
     },
 
     isActive: {
@@ -44,16 +76,7 @@ const appSchema = new mongoose.Schema({
         default: true
     },
 
-    port: {
-        type: Number
-    },
-
-    status: {
-        type: String,
-        enum: ["idle", "building", "running", "failed"],
-        default: "idle"
-    },
-
+    //connection
     domain: {
         type: String
     },
@@ -61,6 +84,10 @@ const appSchema = new mongoose.Schema({
     lastActiveAt: {
         type: Date,
         default: Date.now
+    },
+
+    lastDeployedAt: {
+        type: Date,
     },
 
     lastBuildAt: {
@@ -77,16 +104,11 @@ const appSchema = new mongoose.Schema({
         enum: ["auto", "manual"],
         default: "auto"
     },
-
-    logs: [
-        {
-            message: String,
-            timestamp: Date
-        }
-    ]
 }, {timestamps: true});
 
 appSchema.index({appOf: 1, path: 1}, {unique: true});
 appSchema.index({appOf: 1, slug: 1}, {unique: true});
+appSchema.index({ domain: 1 });
+appSchema.index({ status: 1 });
 
 export default mongoose.model("App", appSchema);
