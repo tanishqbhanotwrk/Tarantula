@@ -155,7 +155,7 @@ export const detectApps = async (projectPath, deploymentId, repoName) => {
     console.log(apps);
 
     for (const app of apps) {
-        const meta = await extractMetaData(projectPath, app.path, app.runtime);
+        const meta = await extractMetaData(projectPath, app.path, app.runtime, app.slug);
 
         if (meta) {
             app.runtime = meta.runtime;
