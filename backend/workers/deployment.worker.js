@@ -11,9 +11,9 @@ import Deployment from "../models/deployment.model.js";
 import App from "../models/app.model.js";
 
 import { cloneRepo } from "../services/clone.service.js";
-import { updateApps } from "../services/update.service.js";
+import { updateAppSchemas } from "../services/update.service.js";
 import { detectApps } from "../services/detect.service.js";
-import { generateDockerFile } from "../services/generateDockerFile.service.js";
+import { generateDockerFile } from "../services/generatedockerfile.service.js";
 import { runContainer } from "../services/run.service.js";
 
 await connectDB();
@@ -74,11 +74,12 @@ const buildHandler = async (deployment) => {
         console.log("Job successfully running: "+deployment._id);
         console.log(deployment.projectPath);
         const apps = await detectApps(deployment.projectPath, deployment._id, deployment.repoName);
-        await addApp(deployment, apps);
+        const createdAppsDB = await addApp(deployment, apps);
         console.log("Apps sucessfully created");
         const results = await generateDockerFile(deployment.projectPath, apps);
         console.log(results);
-        await updateApps(apps, results);
+        const updatedApps = await updateAppSchemas(createdAppsDB, results);
+        console.log(updatedApps);
     } catch (error) {
         deployment.status = "failed";
         await deployment.save();
