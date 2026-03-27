@@ -80,6 +80,8 @@ const buildHandler = async (deployment) => {
         console.log(results);
         const updatedApps = await updateAppSchemas(createdAppsDB, results);
         console.log(updatedApps);
+        const runResult = await runContainer(deployment._id);
+        console.log(runResult);
     } catch (error) {
         deployment.status = "failed";
         await deployment.save();

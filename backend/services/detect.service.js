@@ -69,14 +69,14 @@ const waitForRepo = async (projectPath, maxRetries = 3) => {
     throw new Error("Repository not populated after clone.");
 };
 
-const base62 = (buffer) => {
-    const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const base36 = (buffer) => {
+    const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
     let num = BigInt("0x" + buffer.toString("hex"));
     let result = "";
 
     while (num > 0) {
-        result = chars[num % 62n] + result;
-        num = num / 62n;
+        result = chars[num % 36n] + result;
+        num = num / 36n;
     }
 
     return result || "0";
@@ -98,7 +98,7 @@ const appNameGenerator = (appPath, deploymentId, repoName) => {
     const input = `${deploymentId}:${normalisedPath}`;
 
     const hashBuffer = crypto.createHash("sha256").update(input).digest();
-    const shortHash = base62(hashBuffer).slice(0, 8);
+    const shortHash = base36(hashBuffer).slice(0, 8);
 
     const slug = `${slugBase}-${shortHash}`;
 
